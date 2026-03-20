@@ -124,6 +124,14 @@ public class DataInitializer implements ApplicationRunner {
                         "within_time_window",
                         Map.of("start_hour", 20, "end_hour", 6))
         ));
+        tupleService.writeTuples(List.of(
+                tupleWithCondition(
+                        "role:tester",
+                        "view_access",
+                        "resource:/home",
+                        "within_time_window",
+                        Map.of("start_hour", 6, "end_hour", 20))
+        ));
         log.info("  ✓ ABAC: role:night-auditor has view_access on /home/config only between 20:00–06:00");
 
         // ── User → role assignments ───────────────────────────────────────────

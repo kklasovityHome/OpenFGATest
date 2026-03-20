@@ -1,5 +1,6 @@
 package com.example.fgasdk.service;
 
+import com.example.fgasdk.abac.RoleContextRequirementCache;
 import com.example.fgasdk.dto.TupleRequest;
 import dev.openfga.sdk.api.client.OpenFgaClient;
 import dev.openfga.sdk.api.client.model.ClientRelationshipCondition;
@@ -25,9 +26,11 @@ import java.util.concurrent.ExecutionException;
 public class FgaTupleService {
 
     private final OpenFgaClient fgaClient;
+    private final RoleContextRequirementCache requirementCache;
 
-    public FgaTupleService(OpenFgaClient fgaClient) {
+    public FgaTupleService(OpenFgaClient fgaClient, RoleContextRequirementCache requirementCache) {
         this.fgaClient = fgaClient;
+        this.requirementCache = requirementCache;
     }
 
     /**
@@ -41,6 +44,12 @@ public class FgaTupleService {
                 .toList();
         ClientWriteRequest req = new ClientWriteRequest().writes(keys);
         fgaClient.write(req).get();
+        // Invalidate only the roles whose tuples changed
+        tuples.stream()
+                .map(TupleRequest::getUser)
+                .filter(u -> u != null && u.startsWith("role:"))
+                .distinct()
+                .forEach(requirementCache::invalidate);
     }
 
     /**
@@ -56,6 +65,11 @@ public class FgaTupleService {
                 .toList();
         ClientWriteRequest req = new ClientWriteRequest().deletes(keys);
         fgaClient.write(req).get();
+        tuples.stream()
+                .map(TupleRequest::getUser)
+                .filter(u -> u != null && u.startsWith("role:"))
+                .distinct()
+                .forEach(requirementCache::invalidate);
     }
 
     private ClientTupleKey toClientTupleKey(TupleRequest t) {

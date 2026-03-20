@@ -144,6 +144,18 @@ public final class AuthorizationModels {
                 },
 
                 {
+                  "type": "group",
+                  "relations": {
+                    "member": { "this": {} }
+                  },
+                  "metadata": {
+                    "relations": {
+                      "member": { "directly_related_user_types": [{ "type": "user" }] }
+                    }
+                  }
+                },
+
+                {
                   "type": "role",
                   "relations": {
                     "assignee": { "this": {} },
@@ -162,7 +174,12 @@ public final class AuthorizationModels {
                   },
                   "metadata": {
                     "relations": {
-                      "assignee":           { "directly_related_user_types": [{ "type": "user" }] },
+                      "assignee": {
+                        "directly_related_user_types": [
+                          { "type": "user" },
+                          { "type": "group", "relation": "member" }
+                        ]
+                      },
                       "granted_by":         { "directly_related_user_types": [{ "type": "role" }] },
                       "effective_assignee": { "directly_related_user_types": [] }
                     }

@@ -30,6 +30,12 @@ public class ListObjectsRequest {
      */
     private List<String> contextualRoles;
 
+    /**
+     * Groups from the IdP JWT, injected at request time as contextual tuples.
+     * Each entry: "group:some-group-name"
+     */
+    private List<String> contextualGroups;
+
     /** Optional CEL context values for ABAC condition evaluation. */
     private Map<String, Object> context;
 
@@ -44,6 +50,9 @@ public class ListObjectsRequest {
 
     public List<String> getContextualRoles() { return contextualRoles; }
     public void setContextualRoles(List<String> contextualRoles) { this.contextualRoles = contextualRoles; }
+
+    public List<String> getContextualGroups() { return contextualGroups; }
+    public void setContextualGroups(List<String> contextualGroups) { this.contextualGroups = contextualGroups; }
 
     public Map<String, Object> getContext() { return context; }
     public void setContext(Map<String, Object> context) { this.context = context; }

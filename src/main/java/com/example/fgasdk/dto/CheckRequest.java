@@ -6,68 +6,37 @@ import java.util.Map;
 /**
  * Request DTO for the /api/authz/check endpoint.
  *
- * Supports three ways of expressing "what roles does this user have":
+ * Option A - Stored assignments:
+ *   userId + relation + objectType + objectId only.
+ *   Role/group assignments must exist as stored tuples.
  *
- * ── Option A: Roles stored in OpenFGA tuples (default, persistent) ──────────
- *   Just send userId + relation + objectType + objectId.
- *   The role assignment must exist as a stored tuple, e.g.:
- *     (user:alice, assignee, role:org-admin)
+ * Option B - contextualRoles (IdP JWT):
+ *   Ephemeral (userId, assignee, roleId) tuples for this check only.
+ *   e.g. ["role:admin", "role:editor"]
  *
- * ── Option B: Roles injected at request time from an Identity Provider ───────
- *   Use the "contextualRoles" field. The app extracts roles from the IdP JWT
- *   and passes them here. OpenFGA evaluates them as if they were stored tuples
- *   but does NOT persist them. Nothing is written to the store.
+ * Option C - contextualGroups (IdP JWT / session):
+ *   Ephemeral (userId, member, groupId) tuples for this check only.
+ *   e.g. ["group:auditors", "group:finance"]
  *
- *   Example — JWT contains roles ["org-admin", "proj-editor"]:
- *   {
- *     "userId":        "user:alice",
- *     "relation":      "can_edit",
- *     "objectType":    "document",
- *     "objectId":      "spec",
- *     "contextualRoles": ["role:org-admin", "role:proj-editor"]
- *   }
- *   This is equivalent to having stored tuples:
- *     (user:alice, assignee, role:org-admin)
- *     (user:alice, assignee, role:proj-editor)
- *   ...but only for this single check call.
+ *   WHY groups cannot be lazily resolved (unlike ABAC params):
+ *   A missing CEL parameter causes OpenFGA to throw HTTP 400 with
+ *   "missing context parameters '[x]'" -- catchable and resolvable.
+ *   A missing group membership tuple causes OpenFGA to return
+ *   allowed:false -- identical to a legitimate policy deny.
+ *   There is no signal to distinguish the two, so group memberships
+ *   MUST be supplied upfront by the caller.
  *
- * ── Option C: ABAC condition context ─────────────────────────────────────────
- *   Pass CEL parameter values via "context":
- *   {
- *     "userId": "user:charlie",
- *     "relation": "can_view",
- *     "objectType": "document",
- *     "objectId": "spec",
- *     "context": { "now": "2026-03-19T10:00:00Z" }
- *   }
- *
- * ── Option D: Both at once ────────────────────────────────────────────────────
- *   {
- *     "userId":        "user:alice",
- *     "relation":      "can_edit",
- *     "objectType":    "document",
- *     "objectId":      "spec",
- *     "contextualRoles": ["role:org-admin"],
- *     "context":       { "now": "2026-03-19T10:00:00Z" }
- *   }
+ * Option D - ABAC context:
+ *   context: {"current_hour": 21} overrides the auto-injected server clock.
+ *   context: {"client_ip": "10.0.1.55"} must be supplied explicitly.
  */
 public class CheckRequest {
     private String userId;
     private String relation;
     private String objectType;
     private String objectId;
-
-    /**
-     * Roles injected from the Identity Provider at request time.
-     * These are passed as contextual tuples — evaluated by OpenFGA for this
-     * check only, never persisted in the store.
-     *
-     * Each entry should be a fully-qualified role ID, e.g. "role:org-admin".
-     * The service will synthesize tuples: (userId, assignee, roleId) for each.
-     */
     private List<String> contextualRoles;
-
-    /** Optional CEL context values for ABAC condition evaluation. */
+    private List<String> contextualGroups;
     private Map<String, Object> context;
 
     public String getUserId() { return userId; }
@@ -84,6 +53,9 @@ public class CheckRequest {
 
     public List<String> getContextualRoles() { return contextualRoles; }
     public void setContextualRoles(List<String> contextualRoles) { this.contextualRoles = contextualRoles; }
+
+    public List<String> getContextualGroups() { return contextualGroups; }
+    public void setContextualGroups(List<String> contextualGroups) { this.contextualGroups = contextualGroups; }
 
     public Map<String, Object> getContext() { return context; }
     public void setContext(Map<String, Object> context) { this.context = context; }
