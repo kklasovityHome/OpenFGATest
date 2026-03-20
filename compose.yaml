@@ -1,0 +1,64 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Docker Compose — full stack (Postgres + OpenFGA server + Spring Boot app)
+#
+# Run everything with a single command:
+#   docker compose up --build
+#
+# Architecture:
+#   • postgres      — relational store for OpenFGA's data
+#   • openfga-migrate — one-shot container that runs DB migrations, then exits
+#   • openfga       — OpenFGA HTTP/gRPC server (the authorization engine)
+#   • app           — Spring Boot service, built from the local Dockerfile.
+#                     Uses the openfga-sdk Java library to talk to the openfga
+#                     service over the internal Docker network.
+#
+# The app waits for the openfga healthcheck to pass before starting, so the
+# authorization engine is guaranteed to be ready when the app boots.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: openfga
+      POSTGRES_USER: openfga
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  openfga-migrate:
+    image: openfga/openfga:v1.8.3
+    command: migrate
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://openfga:secret@postgres:5432/openfga
+
+  openfga:
+    image: openfga/openfga:v1.8.3
+    command: run
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://openfga:secret@postgres:5432/openfga
+      OPENFGA_HTTP_ADDR: 0.0.0.0:8080
+      OPENFGA_GRPC_ADDR: 0.0.0.0:8081
+      OPENFGA_LOG_FORMAT: json
+    ports:
+      - "127.0.0.1:8082:8080"   # exposed to host for local debugging / Playground UI
+      - "127.0.0.1:8083:8081"   # gRPC — available if you switch the SDK transport
+    depends_on:
+      openfga-migrate:
+        condition: service_completed_successfully
+
+
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:5005:5005"
+    environment:
+      # Points the openfga-sdk at the openfga container on the internal network
+      OPENFGA_API_URL: http://openfga:8080
+      # Remote debugger — attach in IntelliJ via Run > Attach to Process on localhost:5005
+      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+
+
